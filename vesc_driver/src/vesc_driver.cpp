@@ -156,6 +156,7 @@ void VescDriver::vescPacketCallback(const std::shared_ptr<VescPacket const>& pac
     state_msg->header.stamp = ros::Time::now();
     state_msg->state.voltage_input = values->getInputVoltage();
     state_msg->state.temperature_pcb = values->getMosTemp();
+    state_msg->state.temperature_motor = values->getMotorTemp();
     state_msg->state.current_motor = values->getMotorCurrent();
     state_msg->state.current_input = values->getInputCurrent();
     state_msg->state.speed = values->getVelocityERPM() / static_cast<double>(num_motor_pole_pairs_) / 60.0 * 2.0 * M_PI;

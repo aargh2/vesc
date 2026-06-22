@@ -11,6 +11,7 @@ int32 FAULT_CODE_OVER_TEMP_MOTOR=6
 
 float64 voltage_input        # input voltage (volt)
 float64 temperature_pcb      # temperature of printed circuit board (degrees Celsius)
+float64 temperature_motor    # temperature of motor (degrees Celsius)
 float64 current_motor        # motor current (ampere)
 float64 current_input        # input current (ampere)
 float64 speed                # motor velocity (rad/s)

@@ -26,6 +26,7 @@
   <depend>tinyxml2_vendor</depend>
   <depend>urdf</depend>
   <depend>vesc_driver</depend>
+  <depend>vesc_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

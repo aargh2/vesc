@@ -29,6 +29,7 @@
 #include "vesc_driver/vesc_interface.hpp"
 #include "vesc_hw_interface/vesc_servo_controller.hpp"
 #include "vesc_hw_interface/vesc_wheel_controller.hpp"
+#include "vesc_msgs/msg/vesc_state_stamped.hpp"
 
 
 namespace vesc_hw_interface
@@ -87,6 +88,11 @@ private:
 
   void packetCallback(const std::shared_ptr<VescPacket const>&);
   void errorCallback(const std::string&);
+  void publishVescState(const VescPacketValues& values);
+  static std::string statusTopicForJoint(const std::string& joint_name);
+
+  std::shared_ptr<rclcpp::Node> status_node_;
+  rclcpp::Publisher<vesc_msgs::msg::VescStateStamped>::SharedPtr status_pub_;
 
   static constexpr double VESC_POS_RANGE = 360.0;  // Full angular range of the VESC PID position control
   static constexpr double VESC_POS_MAPPING_RANGE = 90.0;  // Range for mapping the position to the VESC

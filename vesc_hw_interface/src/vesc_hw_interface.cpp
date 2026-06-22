@@ -22,6 +22,9 @@
 #include <rclcpp/utilities.hpp>
 #include <tinyxml2.h>
 
+#include <algorithm>
+#include <cctype>
+
 namespace vesc_hw_interface
 {
 VescHwInterface::VescHwInterface()
@@ -123,6 +126,16 @@ CallbackReturn VescHwInterface::on_init(const hardware_interface::HardwareInfo& 
     }
   }
   RCLCPP_INFO(rclcpp::get_logger("VescHwInterface"), "joint type: %s", joint_type_.data());
+  const auto status_topic = statusTopicForJoint(joint_name_);
+  auto status_node_name = status_topic;
+  std::replace_if(
+      status_node_name.begin(), status_node_name.end(),
+      [](unsigned char c) { return !std::isalnum(c); }, '_');
+  status_node_ = std::make_shared<rclcpp::Node>("vesc_hw_interface" + status_node_name);
+  status_pub_ = status_node_->create_publisher<vesc_msgs::msg::VescStateStamped>(status_topic, 10);
+  RCLCPP_INFO(
+      rclcpp::get_logger("VescHwInterface"), "Publishing VESC telemetry for %s on %s",
+      joint_name_.c_str(), status_topic.c_str());
   if ((joint_type_ != "revolute") && (joint_type_ != "continuous") && (joint_type_ != "prismatic"))
   {
     RCLCPP_FATAL(rclcpp::get_logger("VescHwInterface"), "Verify your joint type");
@@ -452,6 +465,7 @@ void VescHwInterface::packetCallback(const std::shared_ptr<VescPacket const>& pa
   else if (packet->getName() == "Values")
   {
     std::shared_ptr<VescPacketValues const> values = std::dynamic_pointer_cast<VescPacketValues const>(packet);
+    publishVescState(*values);
 
     const auto current = values->getMotorCurrent();
     const auto velocity_rpm = values->getVelocityERPM() / static_cast<double>(num_rotor_poles_ / 2);
@@ -519,6 +533,54 @@ void VescHwInterface::packetCallback(const std::shared_ptr<VescPacket const>& pa
   }
 }
 
+void VescHwInterface::publishVescState(const VescPacketValues& values)
+{
+  if (!status_pub_)
+  {
+    return;
+  }
+
+  vesc_msgs::msg::VescStateStamped msg;
+  msg.header.stamp = getTime();
+  msg.header.frame_id = joint_name_;
+  msg.state.voltage_input = values.getInputVoltage();
+  msg.state.temperature_pcb = values.getMosTemp();
+  msg.state.temperature_motor = values.getMotorTemp();
+  msg.state.current_motor = values.getMotorCurrent();
+  msg.state.current_input = values.getInputCurrent();
+
+  const double pole_pairs = std::max(1.0, static_cast<double>(num_rotor_poles_) / 2.0);
+  msg.state.speed = values.getVelocityERPM() / pole_pairs / 60.0 * 2.0 * M_PI;
+  msg.state.duty_cycle = values.getDuty();
+  msg.state.charge_drawn = values.getConsumedCharge();
+  msg.state.charge_regen = values.getInputCharge();
+  msg.state.energy_drawn = values.getConsumedPower();
+  msg.state.energy_regen = values.getInputPower();
+  msg.state.displacement = values.getPosition();
+  msg.state.distance_traveled = values.getDisplacement();
+  msg.state.fault_code = values.getFaultCode();
+  status_pub_->publish(msg);
+}
+
+std::string VescHwInterface::statusTopicForJoint(const std::string& joint_name)
+{
+  std::string name = joint_name;
+  const std::string wheel_suffix = "_wheel_joint";
+  const std::string joint_suffix = "_joint";
+  if (name.size() > wheel_suffix.size() &&
+      name.compare(name.size() - wheel_suffix.size(), wheel_suffix.size(), wheel_suffix) == 0)
+  {
+    name.erase(name.size() - wheel_suffix.size());
+  }
+  else if (name.size() > joint_suffix.size() &&
+           name.compare(name.size() - joint_suffix.size(), joint_suffix.size(), joint_suffix) == 0)
+  {
+    name.erase(name.size() - joint_suffix.size());
+  }
+  std::replace_if(
+      name.begin(), name.end(), [](unsigned char c) { return !std::isalnum(c) && c != '_'; }, '_');
+  return "/hardware/vesc/" + name + "/status";
+}
 void VescHwInterface::errorCallback(const std::string& error)
 {
   RCLCPP_ERROR(rclcpp::get_logger("VescHwInterface"), "%s", error.c_str());
