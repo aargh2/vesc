@@ -434,6 +434,14 @@ void VescHwInterface::packetCallback(const std::shared_ptr<VescPacket const>& pa
     RCLCPP_WARN(rclcpp::get_logger("VescHwInterface"), "[VescHwInterface::packetCallback]packetCallcack called, but "
                                                        "no packet received");
   }
+  const bool is_values_packet = packet->getName() == "Values";
+  std::shared_ptr<VescPacketValues const> values;
+  if (is_values_packet)
+  {
+    values = std::dynamic_pointer_cast<VescPacketValues const>(packet);
+    publishVescState(*values);
+  }
+
   if (command_mode_ == "position_duty")
   {
     servo_controller_.updateSensor(packet);
@@ -462,10 +470,8 @@ void VescHwInterface::packetCallback(const std::shared_ptr<VescPacket const>& pa
     RCLCPP_INFO_STREAM(rclcpp::get_logger("VescHwInterface"), "  - Gear ratio: " << gear_ratio_);
     RCLCPP_INFO_STREAM(rclcpp::get_logger("VescHwInterface"), "  - Torque constant: " << torque_const_);
   }
-  else if (packet->getName() == "Values")
+  else if (is_values_packet)
   {
-    std::shared_ptr<VescPacketValues const> values = std::dynamic_pointer_cast<VescPacketValues const>(packet);
-    publishVescState(*values);
 
     const auto current = values->getMotorCurrent();
     const auto velocity_rpm = values->getVelocityERPM() / static_cast<double>(num_rotor_poles_ / 2);
